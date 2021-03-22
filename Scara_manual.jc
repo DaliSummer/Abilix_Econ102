@@ -1,0 +1,301 @@
+#include "ASEIO.h"
+
+const int buttons_ports[] = {9/* left front*/, 8/* right front*/, 2/* left top*/, 3/* right top*/,1/* mode switcher */, 10/* emergency */};
+const int magnet_port = 0x1;
+const int touch_ports[] = {4/* 0 left */, 5/* 1 left */, 11/* 2 up */, 7 /* 0 right */, 6/* 1 right */, -1/* 2  down */};
+
+float area[] = {100.0, 100.0, 7.1}; //  max timing area for each motor
+float cur_pos[] = {0.0, 0.0, 0.0}; // current timing position for each motor
+int beep = 0;
+
+int work = 1; // if 0 - emergency stop
+int mode = 0; // remote control mode: 1 is arms control, -1 is actuator control
+int remote_state[] = {0, 0, 0, 0}; // states of remote buttons (left front, right front, left top, right top)
+int let[] = {0, 0, 0}; //  -1, 0, 1 direction values
+int touch[] = {0, 0, 0}; // -1, 0, 1 touch sensors values
+float timer[] = {0.0, 0.0, 0.0, /* moving timer task for 0-2 */ 0.0, 0.0, 0.0 /* start moving time for 0-2*/};
+int speed[] = {-50, 50, -80}; // speed values to left or up side
+
+void check_touch(int i)
+{
+    if (touch_ports[i]>=0 && DI(touch_ports[i]))
+    {
+        touch[i]=-1;
+    }
+    else if (touch_ports[i+3]>=0 && DI(touch_ports[i+3]))
+    {
+        touch[i]=1;
+    }
+    else
+    {
+        touch[i]=0;
+    }
+}
+
+void start(int i, int l, float t)
+{    
+    timer[i] = 0.0;
+    if (t != 0.0)
+    {
+         if (t*l + cur_pos[i] > area[i])
+        {
+            t = area[i] - cur_pos[i];
+            beep = 1;
+        } 
+        else if (t*l + cur_pos[i] < 0)
+        {
+           t = cur_pos[i];
+           beep = 1;
+        }
+        timer[i] = seconds() + t;
+    } 
+    let[i] = l;
+    timer[i+3] = seconds();
+}
+
+void stop(int i)
+{
+    cur_pos[i] += (seconds()-timer[i+3])*let[i];
+    let[i] = 0;
+    timer[i] = 0.0;
+    beep = 1;
+}
+
+void check_time(int i)
+{
+    if (timer[i] == 0.0)
+    {
+        return;
+    }
+    if (seconds() > timer[i])
+    {
+        stop(i);
+    }
+}
+
+void check_position(int i)
+{
+    if ((let[i] >0 && cur_pos[i] > area[i]) || (let[i] < 0 && cur_pos[i] < 0))
+    {
+        stop(i);
+     }
+}
+
+void go(int i)
+{     
+    check_touch(i);
+    check_position(i);
+    check_time(i);
+            
+    if (!work || let[i] == touch[i])
+    {
+        SetMotoCL(i, 0);
+        if (let[i])
+        {
+            stop(i);
+        }
+        return;
+    }
+    
+    SetMotoCL(i, let[i] * speed[i]);
+}
+
+void calibrate_actuator()
+{
+    int i = 2;
+
+    start(i, -1, 0);
+    while(let[i])
+    {
+    }
+    cur_pos[i] = 0.0;
+    start(i, 1, area[i]/2);
+    while(let[i])
+    {
+    }
+}
+
+void calibrate_arm(int i)
+{
+    start(i, -1, 0);
+    while(let[i])
+    {
+    }
+    start(i, 1, 0);
+    float l_timer = seconds();
+    while(let[i])
+    {
+    }
+    area[i] = seconds() - l_timer;
+    cur_pos[i] = area[i];
+    start(i, -1, area[i]/2);
+    while(let[i])
+    {
+    }
+}
+
+void main()
+{
+    calibrate_actuator();
+    calibrate_arm(1);
+    calibrate_arm(0);
+    mode = 1;
+}
+
+void task_1()
+{
+    while(work)
+    {
+        go(0);
+        go(1);
+        go(2);
+        
+        if (1 == mode)
+        {
+            if ( DI(buttons_ports[0]) && !remote_state[0] )
+            {
+                remote_state[0] = 1;
+                start(1, -1, 0);
+            }
+            if ( !DI(buttons_ports[0]) && remote_state[0] )
+            {
+                remote_state[0] = 0;
+                stop(1);
+            }
+            if ( DI(buttons_ports[1]) && !remote_state[1] )
+            {
+                remote_state[1] = 1;
+                start(1, 1, 0);
+            }
+            if ( !DI(buttons_ports[1]) && remote_state[1] )
+            {
+                remote_state[1] = 0;
+                stop(1);
+            }
+            
+            if ( DI(buttons_ports[2]) && !remote_state[2] )
+            {
+                remote_state[2] = 1;
+                start(0, -1, 0);
+            }
+            if ( !DI(buttons_ports[2]) && remote_state[2] )
+            {
+                remote_state[2] = 0;
+                stop(0);
+            }
+            if ( DI(buttons_ports[3]) && !remote_state[3] )
+            {
+                remote_state[3] = 1;
+                start(0, 1, 0);
+            }
+            if ( !DI(buttons_ports[3]) && remote_state[3] )
+            {
+                remote_state[3] = 0;
+                stop(0);
+            }
+        }
+        if (-1 == mode)
+        {
+            if ( DI(buttons_ports[0]) && !remote_state[0] )
+            {
+                remote_state[0] = 1;
+                start(2, -1, 0);
+            }
+            if ( !DI(buttons_ports[0]) && remote_state[0] )
+            {
+                remote_state[0] = 0;
+                stop(2);
+            }
+            if ( DI(buttons_ports[1]) && !remote_state[1] )
+            {
+                remote_state[1] = 1;
+                start(2, 1, 0);
+            }
+            if ( !DI(buttons_ports[1]) && remote_state[1] )
+            {
+                remote_state[1] = 0;
+                stop(2);
+            }
+            
+            if ( DI(buttons_ports[2]) && !remote_state[2] )
+            {
+                remote_state[2] = 1;
+                SetDO( magnet_port, 1 );
+            }
+            if ( !DI(buttons_ports[2]) && remote_state[2] )
+            {
+                remote_state[2] = 0;
+            }
+            if ( DI(buttons_ports[3]) && !remote_state[3] )
+            {
+                remote_state[3] = 1;
+                SetDO( magnet_port, 0 );
+            }
+            if ( !DI(buttons_ports[3]) && remote_state[3] )
+            {
+                remote_state[3] = 0;
+            }
+        }
+    }
+}
+
+void task_2()
+{
+    float l_timer = seconds();
+    while(work)
+    {
+        if ( DI(buttons_ports[5]) )
+        {
+            work = 0;
+            go(0);
+            go(1);
+            go(2);
+            
+            BEEP(723.200012,0.500000);
+            BEEP(423.200012,0.500000);
+            BEEP(123.200012,0.500000);
+        }
+        if ( DI(buttons_ports[4]) && seconds() - l_timer  > 2.5)
+        {
+            stop(0);
+            stop(1);
+            stop(2);
+            mode *= -1;
+            beep = 1;
+            l_timer = seconds();
+        }
+    }
+}
+
+void task_3()
+{
+    int i = 0;
+    float l_timer = seconds();
+    while (1)
+    {
+        if (beep)
+        {
+            BEEP(123.200012,0.100000);
+            beep = 0;
+        }
+        
+        if (seconds() - l_timer  > 1.5)
+        {
+            ++i;
+            if (3 == i)
+            {
+                i = 0;
+            }
+            printf( "\ni = %d\nlet = %d\ntouch = %d\narea = %f\npos = %f\nmode = %d\n", i, let[i], touch[i], area[i], cur_pos[i], mode);
+            l_timer = seconds();
+        }
+    }
+}
+
+
+
+
+
+
+
+//2013DUODUOScaraA0905
