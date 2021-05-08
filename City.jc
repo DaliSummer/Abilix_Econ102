@@ -1,0 +1,175 @@
+#include "ASEIO.h"
+
+
+
+int photo_1=0;
+float tim_1=0.0f;
+int touch_1=0;
+int touch_2=0;
+int touch_9=0;
+int mag_1=0;
+int mag_2=0;
+int mag_3=0;
+int voi_1=0;
+
+void SubRoutine_1();
+void SubRoutine_2();
+void SubRoutine_3();
+void SubRoutine_4();
+void SubRoutine_5();
+void SubRoutine_6();
+
+/*DarkLed*/
+void SubRoutine_1( )
+{
+    photo_1 = AI(0);
+    if(photo_1 < 500)
+    {
+        SetDO( 0x40, 1 );
+    }
+    else
+    {
+        SetDO( 0x40, 0 );
+    }
+    
+}
+
+/*Rotate*/
+void SubRoutine_2( )
+{
+    mag_1 = DI(1);
+    if(mag_1 == 1)
+    {
+        SetMoto(0,55);
+    }
+    else
+    {
+        SetMoto(0,0);
+    }
+    mag_2 = DI(2);
+    if(mag_2 == 1)
+    {
+        SetMoto(1,-45);
+    }
+    else
+    {
+        SetMoto(1,0);
+    }
+    
+}
+
+/*Bank*/
+void SubRoutine_3( )
+{
+    mag_3 = DI(5);
+    if(mag_3 == 0)
+    {
+        BEEP(1319.000000,0.250000);
+        wait( 0.250000 );
+        BEEP(1175.000000,0.250000);
+        wait( 0.250000 );
+        BEEP(329.600006,0.250000);
+        wait( 0.250000 );
+        BEEP(293.600006,0.250000);
+        wait( 0.250000 );
+    }
+    
+}
+
+/*Crane*/
+void SubRoutine_4( )
+{
+    touch_1 = DI(3);
+    touch_2 = DI(4);
+    if((touch_1 == 0) && (touch_2 == 0))
+    {
+        SetMoto(2,0);
+    }
+    else
+    {
+        if(touch_1 == 1)
+        {
+            SetMoto(2,80);
+        }
+        else
+        {
+            SetMoto(2,-80);
+        }
+    }
+    
+}
+
+/*SoundLed*/
+void SubRoutine_5( )
+{
+    voi_1 = AI(8);
+    if((voi_1 > 900) && (voi_1 != 200))
+    {
+        SetDO( 0x81, 1 );
+    }
+    else
+    {
+         tim_1 =seconds();
+        if(  tim_1 > 5.000000)
+        {
+            SetDO( 0x80, 0 );
+            resettime();		
+        }
+    }
+    
+}
+
+/*AutoDoor*/
+void SubRoutine_6( )
+{
+    touch_9 = DI(9);
+    if(touch_9 == 1)
+    {
+        SetDO( 0x400, 1 );
+        SetMoto(3,-100);
+        wait( 0.500000 );		
+        SetMoto(3,0);
+        wait( 3.000000 );
+        SetMoto(3,100);
+        wait( 0.500000 );		
+        SetMoto(3,0);
+        SetDO( 0x400, 0 );
+    }
+}
+
+void main()
+{
+
+}
+void task_1()
+{
+    while(1)
+    {
+    SubRoutine_1 ();		
+    
+    SubRoutine_5 ();		
+    
+    }
+}
+void task_2()
+{
+    while(1)
+    {
+    SubRoutine_2 ();		
+    
+    SubRoutine_4 ();		
+    
+    }
+}
+void task_3()
+{
+    while(1)
+    {
+    SubRoutine_3 ();		
+    
+    SubRoutine_6 ();		
+    
+    }
+}
+
+//2013DUODUOCityA0905

@@ -1,0 +1,84 @@
+#include "ASEIO.h"
+
+
+
+int touch_1=0;
+int touch_2=0;
+int mag_1=0;
+int mag_2=0;
+
+void SubRoutine_1();
+
+/*Crane*/
+void SubRoutine_4( )
+{
+    mag_1 = DI(0);
+    mag_2 = DI(1);
+    touch_1 = DI(2);
+    touch_2 = DI(3);
+    if(mag_1 == 1)
+    {
+        SetMoto(1,0);
+        if((touch_1 == 0) && (touch_2 == 0))
+        {
+            SetMoto(0,0);
+        }
+        else
+        {
+            if(touch_1 == 1)
+            {
+                SetMoto(0,100);
+            }
+            else
+            {
+                SetMoto(0,-100);
+            }
+        }
+    }
+    else
+    {
+        if(mag_2 == 1)
+        {
+            SetMoto(0,0);
+            if((touch_1 == 0) && (touch_2 == 0))
+            {
+                SetMoto(1,0);
+            }
+            else
+            {
+                if(touch_1 == 1)
+                {
+                    SetMoto(1,80);
+                }
+                else
+                {
+                    SetMoto(1,-80);
+                }
+            }
+        }
+        else
+        {
+            SetMoto(0,0);
+            SetMoto(1,0);
+        }
+    }
+    
+}
+
+void main()
+{
+    /* Description */
+    // Magnet Sensors - Ports 1 and 2
+    // Buttons - Ports 3 and 4
+    // Low Motor - port 0
+    // High Motor - port 1
+    while(1)
+    {
+    SubRoutine_4 ();		
+    
+        
+    }
+
+}
+
+//2013DUODUOCraneA0905

@@ -1,0 +1,271 @@
+#include "ASEIO.h"
+
+const char p_bottle_sen = 6;
+const char p_button = 7;
+const char p_endstop = 4;
+const int p_green_LED = 0x100; //8
+const int p_red_LED = 0x200; //9
+const int p_mag = 0x20; //5
+
+bool button_flag = 0;
+bool system_on = 0;
+int state = 0;
+float bottle_sen = 0;
+float bottle_keep = 0;
+float bottle_detect_tim = 0;
+float homing_tim = 0;
+float moving_tim = 0;
+float blink_tim = 0;
+float move_blk = 2;
+float move_green = 2;
+bool blink_f = 0;
+
+void main(){
+	while(1){
+        
+        if(DI(p_button) == 1){
+			if(button_flag){
+                system_on = !system_on;
+            }
+         button_flag = 0;
+		} else {
+			button_flag = 1;
+		}
+        
+		 bottle_sen = AI(p_bottle_sen);
+		//printf( "Bottle detected:\nbottle_sen=%f\nbottle_keep=%f\n\n\n\n\n", bottle_sen, bottle_keep); 
+        
+        switch(state)
+		{
+			case 0: //start
+				SetDO(p_mag, 0);
+				SetMoto(3, -100);
+                if(DI(p_endstop)){
+                    homing_tim = seconds();
+                    state = 1;
+                }
+			break;
+            
+            case 1: //go to the middle
+                if ((seconds() - homing_tim) > 0.0){
+                    SetMoto(3, 0);
+                    state = 2;
+                }
+            break;
+            
+			case 2: //stop
+			SetMoto(2, 0);
+			if(system_on){
+				state = 3;
+			}
+			break;
+            
+			case 3: //wait for bottle
+			SetMoto(2, 80);
+			if(!system_on){
+				state = 2;
+			}
+            if(bottle_sen < 3300){
+                bottle_keep = bottle_sen;
+                state = 4;
+                bottle_detect_tim = seconds();
+            }
+			break;
+            
+            case 4: //what bottle is it, black = 2600-2700, green = 1400-1500-1600
+            if(!system_on){
+				state = 2;
+			}
+            if(seconds() - bottle_detect_tim > 0.5){
+                SetMoto(2, 0);
+                bottle_keep = bottle_sen;
+                if(bottle_keep < 2200){
+                    state = 8;
+                } else {
+                    state = 5;
+                }
+            }
+            break;
+ 
+			case 5: //black bottle
+            SetDO(p_mag, 1);
+            if(seconds() - bottle_detect_tim > 6.3){
+				moving_tim = seconds();
+                SetMoto(2, 0);
+                state = 50;
+            } else {
+                SetMoto(2, 80);
+            }
+            if(!system_on){
+				state = 2;
+			}
+			printf( "Black bottle detected\n\n\n\n\n\n\n"); 
+			break;
+            
+            case 50: //pause before moving away
+            if(!system_on){
+				state = 2;
+			}
+            if(seconds() - moving_tim > 0.5){
+                moving_tim = seconds();
+                state = 6;
+            }
+            break;
+            
+            case 6: //start moving away
+            if(!system_on){
+				state = 2;
+			}
+            if(seconds() - moving_tim > move_blk){
+                SetMoto(3, 0);
+                moving_tim = seconds();
+                state = 60;
+            } else {
+                SetMoto(3, 80);
+                }
+            break;
+            
+             case 60:
+             SetMoto(3, 0);
+            if(!system_on){
+				state = 2;
+			}
+            if(seconds() - moving_tim > 1){
+                moving_tim = seconds();
+                state = 7;
+            }
+            break;
+            
+            case 7:
+			if(!system_on){
+				state = 2;
+			}
+            SetDO(p_mag, 0);
+            if(DI(p_endstop)){
+                SetMoto(3, 0);
+                move_blk = 1.2;
+                state = 3;
+            } else {
+                SetMoto(3, -100);
+                }
+            break;
+            
+            case 8: //green bottle
+            SetDO(p_mag, 1);
+            if(seconds() - bottle_detect_tim > 6.3){
+				moving_tim = seconds();
+                SetMoto(2, 0);
+                state = 80;
+            } else {
+                SetMoto(2, 80);
+            }
+            if(!system_on){
+				state = 2;
+			}
+			printf( "Green bottle detected\n\n\n\n\n\n\n"); 
+			break;
+            
+            case 80: //pause before moving away
+            if(!system_on){
+				state = 2;
+			}
+            if(seconds() - moving_tim > 0.5){
+                moving_tim = seconds();
+                state = 9;
+            }
+            break;
+            
+            case 9: //start moving away
+            if(!system_on){
+				state = 2;
+			}
+            if(seconds() - moving_tim > move_green){
+                SetMoto(3, 0);
+                moving_tim = seconds();
+                state = 90;
+            } else {
+                SetMoto(3, -80);
+                }
+            break;
+            
+            case 90:
+             SetMoto(3, 0);
+            if(!system_on){
+				state = 2;
+			}
+            if(seconds() - moving_tim > 1){
+                moving_tim = seconds();
+                state = 10;
+            }
+            break;
+            
+            case 10: //start moving back
+			if(!system_on){
+				state = 2;
+			}
+            SetDO(p_mag, 0);
+            if(DI(p_endstop)){
+                moving_tim = seconds();
+                state = 11;
+            } else {
+                SetMoto(3, 100);
+                }
+            break;
+            
+            case 11: //timeout for magnet after moving back
+			if(!system_on){
+				state = 2;
+			}
+            SetDO(p_mag, 0);
+            if(seconds() - moving_tim > 0.1){
+                SetMoto(3, 0);
+                move_green = 1.2;
+                state = 3;
+            } else {
+                SetMoto(3, 100);
+                }
+            break;
+	}
+}
+}
+
+
+void task_1(){
+    while(1){
+		if ((seconds() - blink_tim) > 0.5){
+			blink_tim = seconds();
+			blink_f = !blink_f;
+		}
+        switch(state){
+            case 0:
+            case 1:
+            case 2:
+            SetDO(p_red_LED, 1);
+            SetDO(p_green_LED, 0);
+            break;
+            case 3:
+            SetDO(p_red_LED, 0);
+			if(blink_f){
+				SetDO(p_green_LED, 1);
+			} else {
+				SetDO(p_green_LED, 0);
+			}
+            break;
+            case 4:
+            case 5:
+            case 6:
+            SetDO(p_red_LED, 0);
+            SetDO(p_green_LED, 1);
+            break;
+		}
+    }
+}
+
+
+
+
+
+
+
+
+//2013DUODUONoNameA0905
